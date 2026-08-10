@@ -352,7 +352,39 @@
       nowTitle.textContent = meta.title; nowArtist.textContent = meta.artist;
       heroTitle.textContent = meta.title; heroArtist.textContent = meta.artist;
       if (meta.thumb) setLabelImage(meta.thumb);
+      updateMediaSession(meta);
     }
+
+    /* ============================================================
+       LOCK-SCREEN CONTROLS — Media Session API (free, built into
+       browsers). Shows title/artist/artwork on the phone's lock
+       screen & notification, and wires up hardware/earphone buttons.
+    ============================================================ */
+    function updateMediaSession(meta){
+      if (!('mediaSession' in navigator)) return;
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: meta.title || 'Purani Dhun',
+        artist: meta.artist || 'Purani Dhun Radio',
+        album: 'Purani Dhun',
+        artwork: meta.thumb ? [
+          { src: meta.thumb, sizes: '96x96', type: 'image/jpeg' },
+          { src: meta.thumb, sizes: '256x256', type: 'image/jpeg' },
+          { src: meta.thumb, sizes: '512x512', type: 'image/jpeg' },
+        ] : []
+      });
+    }
+
+    function setupMediaSessionActions(){
+      if (!('mediaSession' in navigator)) return;
+      navigator.mediaSession.setActionHandler('play', () => { if (ytReady) ytPlayer.playVideo(); });
+      navigator.mediaSession.setActionHandler('pause', () => { if (ytReady) ytPlayer.pauseVideo(); });
+      navigator.mediaSession.setActionHandler('previoustrack', () => cueTrack(currentIndex - 1, true));
+      navigator.mediaSession.setActionHandler('nexttrack', () => cueTrack(currentIndex + 1, true));
+      navigator.mediaSession.setActionHandler('seekto', (details) => {
+        if (ytReady && details.seekTime != null) ytPlayer.seekTo(details.seekTime, true);
+      });
+    }
+    setupMediaSessionActions();
 
     function switchCategory(cat){
       if (cat === currentCategory) return;
@@ -369,6 +401,7 @@
       vinylEls.forEach(v => v.classList.toggle('spinning', isPlaying));
       tonearm.classList.toggle('active', isPlaying);
       eqBars.forEach(b => b.classList.toggle('playing', isPlaying));
+      if ('mediaSession' in navigator) navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
     }
 
     function onPlayerStateChange(e){
@@ -391,6 +424,9 @@
       curTimeEl.textContent = formatTime(cur);
       durTimeEl.textContent = formatTime(dur);
       progressFill.style.width = dur ? ((cur / dur) * 100) + '%' : '0%';
+      if ('mediaSession' in navigator && 'setPositionState' in navigator.mediaSession && dur > 0) {
+        try { navigator.mediaSession.setPositionState({ duration: dur, playbackRate: 1, position: Math.min(cur, dur) }); } catch (e) {}
+      }
     }
 
     function togglePlay(){
